@@ -54,10 +54,10 @@ pub struct Action {
 impl fmt::Display for Action {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let dir = match self.dir {
-            Direction::Up => "^",
-            Direction::Down => "v",
-            Direction::Left => "<",
-            Direction::Right => ">",
+            Direction::Up => "↑",
+            Direction::Down => "↓",
+            Direction::Left => "←",
+            Direction::Right => "→",
         };
         write!(f, "({}, {}) {}", self.x, self.y, dir)
     }
@@ -282,7 +282,8 @@ fn main() {
         .search(&mut HashSet::new(), 3, 3)
         .unwrap();
     println!("{}", g.state);
-    println!("Finished in {} moves", g.history.len());
+    println!("Finished in {} moves\n", g.history.len());
+    println!("(x, y) direction");
     for action in g.history {
         println!("{}", action);
     }
