@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::fmt;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -19,9 +19,10 @@ impl fmt::Display for Tile {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Copy, PartialEq, Eq, Hash)]
 pub struct Grid {
     grid: [[Tile; 7]; 7],
+    filled_count: u32,
 }
 
 impl fmt::Display for Grid {
@@ -30,7 +31,7 @@ impl fmt::Display for Grid {
             for x in 0..7 {
                 write!(f, "{}", self.grid[x][y])?;
             }
-            write!(f, "\n")?;
+            writeln!(f)?;
         }
         Ok(())
     }
@@ -63,6 +64,12 @@ impl fmt::Display for Action {
     }
 }
 
+impl Default for Grid {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Grid {
     pub fn new() -> Grid {
         let mut grid = [[Tile::Filled; 7]; 7];
@@ -83,7 +90,10 @@ impl Grid {
         grid[5][6] = Tile::Blocked;
         grid[6][5] = Tile::Blocked;
         grid[6][6] = Tile::Blocked;
-        Grid { grid }
+        Grid {
+            grid,
+            filled_count: 32,
+        }
     }
 
     pub fn tile_actions(&self, x: usize, y: usize) -> Vec<Action> {
@@ -204,7 +214,10 @@ impl Grid {
                 new_grid[action.x + 2][action.y] = Tile::Filled;
             }
         }
-        Grid { grid: new_grid }
+        Grid {
+            grid: new_grid,
+            filled_count: self.filled_count - 1,
+        }
     }
 
     pub fn filled_count(&self) -> u32 {
@@ -223,7 +236,6 @@ impl Grid {
 #[derive(Clone, Debug)]
 pub struct GameTree {
     state: Grid,
-    next_moves: HashMap<Action, Box<Option<GameTree>>>,
     history: Vec<Action>,
 }
 
@@ -235,52 +247,42 @@ impl Default for GameTree {
 
 impl GameTree {
     pub fn new(state: Grid, history: Vec<Action>) -> GameTree {
-        let next_moves: HashMap<Action, Box<Option<GameTree>>> = HashMap::new();
-        GameTree {
-            state,
-            next_moves,
-            history,
-        }
+        GameTree { state, history }
     }
 
-    pub fn search(&self, memo: &mut HashSet<Grid>, termX: usize, termY: usize) -> Option<GameTree> {
-        if memo.contains(&self.state) {
-            return None;
-        }
-        memo.insert(self.state.clone());
-        let actions = self.state.valid_actions();
-        let mut next_moves = HashMap::new();
-        for action in actions {
-            let new_state = self.state.perform_action(action);
-            let mut new_history = self.history.clone();
-            new_history.push(action);
-            match GameTree::new(new_state, new_history).search(memo, termX, termY) {
-                Some(tree) => {
-                    if tree.next_moves.is_empty()
-                        && tree.state.filled_count() <= 1
-                        && tree.state.grid[termX][termY] == Tile::Filled
-                    {
-                        return Some(tree);
+    pub fn search(&self) -> Option<GameTree> {
+        let term_x = 3;
+        let term_y = 3;
+        let mut memo = HashSet::new();
+        let mut queue: Vec<GameTree> = Vec::new();
+        memo.insert(self.state);
+        queue.push(self.clone());
+        loop {
+            match queue.pop() {
+                None => return None,
+                Some(cur) => {
+                    let actions = cur.state.valid_actions();
+                    for action in actions {
+                        let new_state = &cur.state.perform_action(action);
+                        if !memo.contains(new_state) {
+                            memo.insert(*new_state);
+                            let mut new_history = cur.history.clone();
+                            new_history.push(action);
+                            queue.push(GameTree::new(*new_state, new_history));
+                        }
                     }
-                    next_moves.insert(action, Box::new(Some(tree)));
-                }
-                None => {
-                    next_moves.insert(action, Box::new(None));
+                    if cur.state.filled_count <= 1 && cur.state.grid[term_x][term_y] == Tile::Filled
+                    {
+                        return Some(cur);
+                    }
                 }
             }
         }
-        Some(GameTree {
-            state: self.state.clone(),
-            next_moves,
-            history: self.history.clone(),
-        })
     }
 }
 
 fn main() {
-    let g = GameTree::default()
-        .search(&mut HashSet::new(), 3, 3)
-        .unwrap();
+    let g = GameTree::default().search().unwrap();
     println!("{}", g.state);
     println!("Finished in {} moves\n", g.history.len());
     println!("(x, y) direction");
